@@ -2,7 +2,7 @@
 #ifndef COMMANDS_H_
 #define COMMANDS_H_
 
-#include<iostream>
+#include <iostream>
 #include <string.h>
 
 #include <fstream>
@@ -11,9 +11,19 @@
 #include "sstream"
 #include "math.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#include <pthread.h>
+#include <thread>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 using namespace std;
 
-class DefaultIO {
+class DefaultIO
+{
 public:
     virtual string read() = 0;
 
@@ -27,44 +37,93 @@ public:
 
     // you may add additional methods here
 };
-class StandardIO: public DefaultIO{
+class StandardIO : public DefaultIO
+{
 public:
-    string read(){
+    string read()
+    {
         string string1;
-        cin>>string1;
+        cin >> string1;
         return string1;
     }
 
-    void write(string text){
-        cout<<text<<endl;
+    void write(string text)
+    {
+        cout << text << endl;
     }
 
-    void write(float f){
-        cout<<f<<endl;
+    void write(float f)
+    {
+        cout << f << endl;
     }
 
-    void read(float *f){
-        cin>>*f;
+    void read(float *f)
+    {
+        cin >> *f;
+    }
+};
+class SocketIO : public DefaultIO
+{
+    int userID;
+
+public:
+    SocketIO(int userID)
+    {
+        this->userID = userID;
+    }
+    virtual string read()
+    {
+        string serverInput = "";
+        char c = 0;
+        int r1 = ::read(userID, &c, sizeof(char));
+        while (c != '\n')
+        {
+            serverInput += c;
+            int r2 = ::read(userID, &c, sizeof(char));
+        }
+        return serverInput;
+    }
+
+    virtual void write(string text)
+    {
+        ::write(userID, text.c_str(), text.length());
+        //::write(userID, "\n", 1);
+    }
+
+    virtual void write(float f)
+    {
+        string f_str = to_string(f);
+        ::write(userID, f_str.c_str(), to_string(f).length());
+        // ::write(userID, "\n", 1);
+    }
+
+    virtual void read(float *f)
+    {
+        cin >> *f;
     }
 };
 // you may add here helper classes
-struct Data{
-    TimeSeries* train_ts;
-    TimeSeries* test_ts;
+struct Data
+{
+    TimeSeries *train_ts;
+    TimeSeries *test_ts;
     HybridAnomalyDetector detector;
     vector<AnomalyReport> anomalyreports;
     int line_count_test;
 };
 
 // you may edit this class
-class Command {
+class Command
+{
 protected:
     DefaultIO *dio;
+
 public:
     string description = "defult description";
-    struct Data* data;
+    struct Data *data;
 
-    Command(DefaultIO *dio, Data *data) : dio(dio), data(data) {
+    Command(DefaultIO *dio, Data *data) : dio(dio), data(data)
+    {
     }
 
     virtual void execute() = 0;
@@ -73,21 +132,26 @@ public:
 };
 
 // implement here your command classes
-class Upload_command : public Command {
+class Upload_command : public Command
+{
 public:
     Upload_command(DefaultIO *dio, Data *data)
-            : Command(dio, data) {
+        : Command(dio, data)
+    {
         this->description = "1.upload a time series csv file\n";
     }
 
-    void execute() {
+    void execute()
+    {
         //upload train csv:
         ofstream trainFile("traindata.csv");
         dio->write("Please upload your local train CSV file.\n");
         string line = "";
-        do {
+        do
+        {
             line = dio->read();
-            if (line!="done") trainFile << line << endl;
+            if (line != "done")
+                trainFile << line << endl;
         } while (line != "done");
         dio->write("Upload complete.\n");
         //TimeSeries traintimeSeries("traindata.csv");
@@ -99,29 +163,34 @@ public:
         ofstream testFile("testdata.csv");
         dio->write("Please upload your local test CSV file.\n");
         data->line_count_test = 0;
-        do {
+        do
+        {
             line = dio->read();
-            if (line!="done"){
+            if (line != "done")
+            {
                 testFile << line << endl;
-                data->line_count_test++;}
+                data->line_count_test++;
+            }
         } while (line != "done");
         dio->write("Upload complete.\n");
         // TimeSeries testtimeSeries("testdata.csv");
-        this->data->test_ts  =new TimeSeries("testdata.csv");
+        this->data->test_ts = new TimeSeries("testdata.csv");
         //data->test_ts = &testtimeSeries;
         testFile.close();
-
     }
 };
 
-class Algorithem_setting_command : public Command {
+class Algorithem_setting_command : public Command
+{
 public:
     Algorithem_setting_command(DefaultIO *dio, Data *data)
-            : Command(dio, data) {
+        : Command(dio, data)
+    {
         this->description = "2.algorithm settings\n";
     }
 
-    void execute() {
+    void execute()
+    {
         float correlation_threshold = data->detector.get_correlation_threshold();
         dio->write("The current correlation threshold is " + to_string(correlation_threshold) + '\n' +
                    "Type a new threshold\n");
@@ -130,57 +199,70 @@ public:
     }
 };
 
-class Anomaly_detection_command : public Command {
+class Anomaly_detection_command : public Command
+{
 public:
     Anomaly_detection_command(DefaultIO *dio, Data *data)
-            : Command(dio, data) {
+        : Command(dio, data)
+    {
         this->description = "3.detect anomalies\n";
     }
 
-    void execute() {
+    void execute()
+    {
         data->detector.learnNormal(*data->train_ts);
         data->anomalyreports = data->detector.detect(*data->test_ts);
         dio->write("anomaly detection complete.\n");
     }
 };
 
-class Display_results_command : public Command {
+class Display_results_command : public Command
+{
 public:
     Display_results_command(DefaultIO *dio, Data *data)
-            : Command(dio, data) {
+        : Command(dio, data)
+    {
         this->description = "4.display results\n";
     }
 
-    void execute() {
-        for (int i = 0; i < data->anomalyreports.size(); i++) {
+    void execute()
+    {
+        for (int i = 0; i < data->anomalyreports.size(); i++)
+        {
             dio->write(to_string(data->anomalyreports[i].timeStep) +
-                       '\t'+" " + data->anomalyreports[i].description+'\n');
+                       '\t' + " " + data->anomalyreports[i].description + '\n');
         }
         dio->write("Done.\n");
     }
 };
 
-class Analyze_results_command : public Command {
+class Analyze_results_command : public Command
+{
 public:
     Analyze_results_command(DefaultIO *dio, Data *data)
-            : Command(dio, data) {
+        : Command(dio, data)
+    {
         this->description = "5.upload anomalies and analyze results\n";
     }
 
-    void execute() {
+    void execute()
+    {
         dio->write("Please upload your local anomalies file.\n");
         //create vector that holds start and end time of each anamoly given by user
         vector<pair<long, long>> anomaly_instances_reported;
         int positive_steps = 0;
         string line;
         long time;
-        do {
+        do
+        {
             line = dio->read();
-            if(line!="done"){
+            if (line != "done")
+            {
                 stringstream ss(line);
                 vector<string> times;
                 string intermediate;
-                while (getline(ss, intermediate, ',')) {
+                while (getline(ss, intermediate, ','))
+                {
                     times.push_back(intermediate);
                 }
                 anomaly_instances_reported.push_back(make_pair(stol(times.at(0)),
@@ -199,11 +281,16 @@ public:
         int i = 1;
 
         // for (int i = 1;i<data->anomalyreports.size();i++){
-        do {
+        do
+        {
             while ((data->anomalyreports[i].description == anamoly_description) &&
-                   (data->anomalyreports[i].timeStep == timestep + 1)) {
+                   (data->anomalyreports[i].timeStep == timestep + 1))
+            {
                 timestep++;
-                if(i == data->anomalyreports.size()-1){break;}
+                if (i == data->anomalyreports.size() - 1)
+                {
+                    break;
+                }
                 i++;
             }
             anomaly_instances.push_back(make_pair(timestart, timestep));
@@ -221,56 +308,68 @@ public:
         bool flag = 0;
 
         //iterate over instances in anomaly_instance and check if they overlap with anomaly_instance_reported.
-        for (int j = 0; j < anomaly_instances_reported.size(); j++) {
+        for (int j = 0; j < anomaly_instances_reported.size(); j++)
+        {
             flag = 0;
-            for (int k = 0; k < anomaly_instances.size(); k++) {
+            for (int k = 0; k < anomaly_instances.size(); k++)
+            {
                 //if left side of a is bigger then right side of b
-                if (anomaly_instances.at(k).first > anomaly_instances_reported.at(j).second) {
+                if (anomaly_instances.at(k).first > anomaly_instances_reported.at(j).second)
+                {
                     FP++;
                     continue;
                 }
-                    //if right side of a is smaller then left side of b
-                else if (anomaly_instances[k].second < anomaly_instances_reported[j].first) {
+                //if right side of a is smaller then left side of b
+                else if (anomaly_instances[k].second < anomaly_instances_reported[j].first)
+                {
                     FP++;
                     continue;
                 }
-                    //option1 - left side of a is in range b
+                //option1 - left side of a is in range b
                 else if (anomaly_instances[k].first >= anomaly_instances_reported[j].first &&
-                         anomaly_instances[k].first <= anomaly_instances_reported[j].second) {
+                         anomaly_instances[k].first <= anomaly_instances_reported[j].second)
+                {
                     flag = 1;
                     break;
-                }//option2 - right side of a is in range b
+                } //option2 - right side of a is in range b
                 else if (anomaly_instances[k].second <= anomaly_instances_reported[j].second &&
-                         anomaly_instances[k].second >= anomaly_instances_reported[j].first) {
+                         anomaly_instances[k].second >= anomaly_instances_reported[j].first)
+                {
                     flag = 1;
                     break;
-                }//option3 - b is in range a
+                } //option3 - b is in range a
                 else if (anomaly_instances[k].first <= anomaly_instances_reported[j].first &&
-                         anomaly_instances[k].second >= anomaly_instances_reported[j].second) {
+                         anomaly_instances[k].second >= anomaly_instances_reported[j].second)
+                {
                     flag = 1;
                     break;
                 }
             }
-            if (flag) TP++;
-        }float true_positive_rate = TP/P;
-        true_positive_rate = floorf(true_positive_rate * 1000) / 1000;
-        //true_positive_rate = (int)(true_positive_rate*1000);
-        //true_positive_rate = float(true_positive_rate)/1000;
-        float false_alarm_rate = FP/N;
-        false_alarm_rate = floorf(false_alarm_rate * 1000) / 1000;
-        dio->write("True Positive Rate: "+to_string(true_positive_rate)+'\n');
-        dio->write("False Positive Rate: "+to_string(false_alarm_rate)+'\n');
-
+            if (flag)
+                TP++;
+        }
+        float true_positive_rate = TP / P;
+        //true_positive_rate = floorf(true_positive_rate * 1000) / 1000;
+        true_positive_rate = (int)(true_positive_rate * 1000);
+        true_positive_rate = float(true_positive_rate) / 1000;
+        float false_alarm_rate = FP / N;
+        false_alarm_rate = (int)(false_alarm_rate * 1000);
+        false_alarm_rate = float(false_alarm_rate) / 1000;
+        dio->write("True Positive Rate: " + to_string(true_positive_rate).substr(0, 3) + '\n');
+        dio->write("False Positive Rate: " + to_string(false_alarm_rate).substr(0, 4) + '\n');
     }
 };
 
-class Exit_command : public Command {
+class Exit_command : public Command
+{
 public:
     Exit_command(DefaultIO *dio, Data *data)
-            : Command(dio, data) {
+        : Command(dio, data)
+    {
         this->description = "6.exit\n";
     }
-    void execute(){
+    void execute()
+    {
         delete this->data->train_ts;
         delete this->data->test_ts;
     }

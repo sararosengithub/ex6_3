@@ -12,17 +12,18 @@
 #include "anomaly_detection_util.h"
 using namespace std;
 
-class Circle{
+class Circle
+{
 public:
     Point center;
     float radius;
-    Circle(Point c,float r):center(c),radius(r){}
+    Circle(Point c, float r) : center(c), radius(r) {}
 };
 float dist(Point p1, Point p2);
 Circle from_one_point(Point p1);
 Circle from_two_points(Point p1, Point p2);
 Circle from_three_points(Point p1, Point p2, Point p3);
-bool point_in_circle(Point p, Circle c) ;
-Circle Welzls(const std::vector<Point*> &p, std::vector<Point> &r) ;
-Circle findMinCircle(Point** points,size_t size);
+bool point_in_circle(Point p, Circle c);
+Circle Welzls(const std::vector<Point *> &p, std::vector<Point> &r);
+Circle findMinCircle(Point **points, size_t size);
 #endif /* MINCIRCLE_H_ */
